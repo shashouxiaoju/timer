@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0c10">
+<meta name="color-scheme" content="dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="计时">
+<title>计时</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='34' r='22' fill='none' stroke='%23ffb020' stroke-width='6'/%3E%3Cpath d='M32 34V20' stroke='%23ffb020' stroke-width='6' stroke-linecap='round'/%3E%3Cpath d='M26 6h12' stroke='%23ffb020' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#0b0c10; --panel:#15171d; --panel-2:#1b1e26; --line:#262a34;
+  --text:#f5f6f8; --muted:#8d94a5; --faint:#646b7c;
+  --accent:#ffb020; --accent-soft:rgba(255,176,32,.14);
+  --blue:#3b82f6; --blue-soft:rgba(59,130,246,.16);
+  --danger:#f87171; --danger-soft:rgba(248,113,113,.14);
+  --ok:#34d399;
+  --r:18px; --tap:64px;
+  --safe-b:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+html{-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
+body{
+  min-height:100dvh;
+  background:radial-gradient(120% 80% at 50% -12%,#1a1e28 0%,#0b0c10 58%) fixed;
+  color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Segoe UI","Microsoft YaHei",sans-serif;
+  display:flex; flex-direction:column;
+  padding:calc(10px + env(safe-area-inset-top,0px)) 18px calc(18px + var(--safe-b));
+  -webkit-user-select:none; user-select:none;
+  overscroll-behavior-y:contain;
+}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;touch-action:manipulation}
+input{font:inherit;color:inherit}
+[hidden]{display:none!important}
+
+/* ── 顶栏 ───────────────────────────── */
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px}
+.brand{display:flex;align-items:center;gap:9px;font-weight:650;font-size:16px;letter-spacing:.3px}
+.brand .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px 1px rgba(255,176,32,.55)}
+.top-actions{display:flex;gap:6px}
+.ghost{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:8px 13px;border-radius:999px;border:1px solid var(--line);
+  background:rgba(255,255,255,.02);color:var(--muted);
+  font-size:13px;min-height:36px;
+}
+.ghost:active{background:rgba(255,255,255,.07);color:var(--text)}
+
+/* ── 主体 ───────────────────────────── */
+main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:10px 0 0;min-height:0}
+.status{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);min-height:20px;letter-spacing:.4px}
+.status .pulse{width:7px;height:7px;border-radius:50%;background:var(--ok);animation:pulse 1.6s ease-out infinite}
+.status .pulse.stop{background:var(--faint);animation:none}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(52,211,153,.55)}70%{box-shadow:0 0 0 8px rgba(52,211,153,0)}100%{box-shadow:0 0 0 0 rgba(52,211,153,0)}}
+
+.time-wrap{width:100%;display:flex;justify-content:center}
+#time{
+  font-variant-numeric:tabular-nums;
+  font-family:"SF Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:clamp(26px,10.6vw,64px);
+  font-weight:600;
+  line-height:1.06;
+  letter-spacing:-.02em;
+  padding-left:.02em;
+  color:#fff; opacity:.35;
+  transition:opacity .25s ease;
+  white-space:nowrap;
+}
+#time.live{opacity:1}
+#time .f{font-size:.56em;color:var(--muted);margin-left:.06em;font-weight:500}
+/* ── 控制区 ─────────────────────────── */
+.controls{
+  width:100%;max-width:420px;margin-top:10px;
+  display:flex;flex-direction:column;align-items:center;gap:14px;
+  padding-bottom:calc(6px + var(--safe-b));
+}
+.big-btn{
+  width:100%;min-height:var(--tap);border-radius:999px;
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  font-size:17px;font-weight:650;letter-spacing:.5px;
+  transition:transform .12s ease,filter .12s ease,background .2s ease;
+}
+.big-btn:active{transform:scale(.975)}
+.big-btn.primary{background:var(--accent);color:#1a1203;box-shadow:0 8px 28px -10px rgba(255,176,32,.7)}
+.big-btn.stop{background:var(--danger-soft);color:var(--danger);border:1px solid rgba(248,113,113,.3)}
+.big-btn.resume{background:var(--blue);color:#fff;box-shadow:0 8px 28px -10px rgba(59,130,246,.75)}
+.big-btn svg{width:18px;height:18px;flex:0 0 auto}
+.running-actions{width:100%;display:grid;grid-template-columns:1fr 1.3fr;gap:10px}
+
+/* ── 最近记录 ───────────────────────── */
+.history{margin-top:auto;width:100%;max-width:420px}
+.history-head{display:flex;align-items:center;justify-content:space-between;padding:4px 2px 8px}
+.history-title{font-size:13px;color:var(--muted);letter-spacing:.4px}
+.rec-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1px}
+.rec{
+  display:flex;align-items:center;gap:12px;
+  padding:11px 6px 11px 14px;border-radius:14px;
+  background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.015));
+  border:1px solid var(--line);
+}
+.rec + .rec{margin-top:8px}
+.rec-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;text-align:left}
+.rec-name{font-size:15px;font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rec-meta{font-size:12px;color:var(--faint);letter-spacing:.2px}
+.rec-dur{font-variant-numeric:tabular-nums;font-size:14px;color:var(--muted);padding-left:4px;white-space:nowrap}
+.rec-del{
+  width:44px;height:44px;flex:0 0 auto;border-radius:12px;display:grid;place-items:center;
+  color:var(--faint);margin-right:0;
+}
+.rec-del:active{background:var(--danger-soft);color:var(--danger)}
+.rec-del svg{width:16px;height:16px}
+.rec-del.armed{width:auto;padding:0 12px;background:var(--danger);color:#fff}
+.rec-del-txt{font-size:12px;font-weight:600;white-space:nowrap}
+.empty{padding:18px 4px 24px;text-align:center;font-size:13px;color:var(--faint);line-height:1.9}
+
+/* ── 提示条 ─────────────────────────── */
+.notice{
+  width:100%;display:flex;gap:12px;align-items:flex-start;
+  padding:13px 14px;border-radius:14px;margin-bottom:12px;
+  background:var(--blue-soft);border:1px solid rgba(59,130,246,.28);
+  font-size:13px;line-height:1.65;color:#c7d6f5;
+}
+.notice .n-body{flex:1;min-width:0}
+.notice b{color:#fff;font-weight:600}
+.notice .n-act{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.n-btn{padding:7px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.06);font-size:13px}
+.n-btn.acc{background:var(--blue);border-color:transparent;color:#fff}
+
+/* ── 底部弹层 ───────────────────────── */
+.sheet{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;justify-content:center}
+.sheet-mask{position:absolute;inset:0;background:rgba(0,0,0,.6);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+.sheet-card{
+  position:relative;width:100%;max-width:520px;max-height:92dvh;
+  display:flex;flex-direction:column;
+  background:#14161c;border:1px solid var(--line);border-bottom:0;
+  border-radius:22px 22px 0 0;
+  padding:10px 18px calc(18px + var(--safe-b));
+  box-shadow:0 -20px 50px -20px rgba(0,0,0,.8);
+  animation:up .26s cubic-bezier(.2,.9,.3,1);
+}
+@keyframes up{from{transform:translateY(28px);opacity:.5}to{transform:translateY(0);opacity:1}}
+.sheet-grab{width:38px;height:4px;border-radius:99px;background:#3a3f4c;margin:0 auto 16px}
+.sheet h2{margin:0;font-size:19px;font-weight:650;letter-spacing:.2px}
+.sheet .duration{font-size:34px;font-weight:650;letter-spacing:-.01em;font-variant-numeric:tabular-nums;margin:6px 0 2px}
+.sheet .sub{font-size:13px;color:var(--faint);margin:0 0 16px}
+.field{
+  width:100%;min-height:52px;padding:12px 14px;border-radius:14px;
+  background:#0d0f14;border:1px solid var(--line);color:var(--text);
+  font-size:16px;outline:none;-webkit-user-select:text;user-select:text;
+}
+.field::placeholder{color:#5a6172}
+.field:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.hint{font-size:12px;color:var(--faint);margin:9px 2px 0;line-height:1.6}
+.sheet-actions{display:flex;gap:10px;margin-top:16px}
+.sheet-actions .big-btn{flex:1;min-height:54px;font-size:16px}
+.sheet-actions .cancel{background:#22262f;color:var(--muted)}
+
+/* ── 全量记录弹层 ───────────────────── */
+.sheet-scroll{max-height:72dvh;overflow-y:auto;-webkit-overflow-scrolling:touch;margin-top:6px}
+.stats{display:flex;gap:18px;padding:2px 2px 14px;color:var(--faint);font-size:12px}
+.stats b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
+.sheet .rec{background:#0f1116}
+.sheet .empty{padding:26px 0 30px}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><span class="dot"></span>计时</div>
+  <div class="top-actions">
+    <button class="ghost" id="btnExport" hidden type="button">导出</button>
+    <button class="ghost" id="btnAll" hidden type="button">全部记录</button>
+  </div>
+</header>
+
+<main>
+  <div class="status" id="status"><span class="pulse stop" id="pulse"></span><span id="statusText">准备开始</span></div>
+  <div class="time-wrap"><div id="time">00:00:00<span class="f">.0</span></div></div>
+
+  <div class="controls">
+    <div id="noticeSlot"></div>
+
+    <button class="big-btn primary" id="btnStart" type="button">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11.14-6.86a1 1 0 0 0 0-1.72L9.5 4.28A1 1 0 0 0 8 5.14z"/></svg>
+      开始计时
+    </button>
+
+    <div class="running-actions" id="runningActions" hidden>
+      <button class="big-btn resume" id="btnPause" type="button">
+        <svg id="pauseIcon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1.2"/><rect x="14" y="5" width="4" height="14" rx="1.2"/></svg>
+        <span id="pauseText">暂停</span>
+      </button>
+      <button class="big-btn stop" id="btnEnd" type="button">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2.5"/></svg>
+        结束
+      </button>
+    </div>
+  </div>
+
+  <section class="history" id="historyBox">
+    <div class="history-head">
+      <span class="history-title">最近记录</span>
+      <button class="ghost" id="btnAll2" type="button" hidden>全部</button>
+    </div>
+    <ul class="rec-list" id="recList"></ul>
+    <div class="empty" id="emptyHint">还没有记录<br>点上面的按钮开始第一段计时</div>
+  </section>
+</main>
+
+<!-- 命名弹层 -->
+<div class="sheet" id="nameSheet" hidden>
+  <div class="sheet-mask" data-close="nameSheet"></div>
+  <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="nameTitle">
+    <div class="sheet-grab"></div>
+    <h2 id="nameTitle">这段计时叫什么？</h2>
+    <div class="duration" id="nameDuration">00:00</div>
+    <p class="sub" id="nameSub"></p>
+    <input class="field" id="nameInput" type="text" maxlength="80" placeholder="例如：写周报 / 读论文 / 健身" autocomplete="off" enterkeyhint="done">
+    <p class="hint">留空也可以，会保存为「未命名」；之后随时能改名。</p>
+    <div class="sheet-actions">
+      <button class="big-btn cancel" id="btnDiscard" type="button">不保存</button>
+      <button class="big-btn primary" id="btnSaveName" type="button">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 全部记录弹层 -->
+<div class="sheet" id="allSheet" hidden>
+  <div class="sheet-mask" data-close="allSheet"></div>
+  <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="allTitle">
+    <div class="sheet-grab"></div>
+    <h2 id="allTitle">全部记录</h2>
+    <div class="stats" id="allStats"></div>
+    <div class="sheet-scroll">
+      <ul class="rec-list" id="allList"></ul>
+      <div class="empty" id="allEmpty" hidden>还没有记录</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ───────────────────────── 常量与存储 ───────────────────────── */
+  const CURRENT_KEY = 'sw.current.v1';
+  const RECORDS_KEY = 'sw.records.v1';
+  const DRAFT_KEY = 'sw.draft.v1';
+  const MIN_SAVE_MS = 3000;           // 短于 3 秒的记录不弹命名
+  const DAY = 86400000;
+  const TRASH_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+
+  const $ = (id) => document.getElementById(id);
+  const el = {
+    time: $('time'),
+    status: $('status'), statusText: $('statusText'), pulse: $('pulse'),
+    btnStart: $('btnStart'), runningActions: $('runningActions'),
+    btnPause: $('btnPause'), btnEnd: $('btnEnd'), pauseText: $('pauseText'),
+    noticeSlot: $('noticeSlot'),
+    historyBox: $('historyBox'),
+    recList: $('recList'), emptyHint: $('emptyHint'),
+    btnAll: $('btnAll'), btnAll2: $('btnAll2'), btnExport: $('btnExport'),
+    nameSheet: $('nameSheet'), nameTitle: $('nameTitle'),
+    nameDuration: $('nameDuration'), nameSub: $('nameSub'),
+    nameInput: $('nameInput'), btnSaveName: $('btnSaveName'), btnDiscard: $('btnDiscard'),
+    allSheet: $('allSheet'), allList: $('allList'), allEmpty: $('allEmpty'), allStats: $('allStats')
+  };
+
+  const store = {
+    get(key, fallback) {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw == null ? fallback : JSON.parse(raw);
+      } catch (e) { return fallback; }
+    },
+    set(key, val) {
+      try { localStorage.setItem(key, JSON.stringify(val)); return true; }
+      catch (e) { return false; }
+    }
+  };
+
+  /* ───────────────────────── 状态 ─────────────────────────
+     state: { running, startAt, acc, endedAt? }
+       acc       已累计毫秒（暂停前）
+       startAt   本段运行的起点（未暂停时有效）
+  ------------------------------------------------------------- */
+  let state = null;
+  let records = [];
+  let pending = null;     // 等待命名的记录
+  let editingId = null;   // 正在改名的记录
+  let tickHandle = 0;
+  let lastStatus = '';
+  let swReg = null;
+
+  /* ───────────────────────── 时间格式 ───────────────────────── */
+  const pad = (n, w) => String(n).padStart(w, '0');
+
+  function elapsedMs() {
+    if (!state) return 0;
+    return state.acc + (state.running ? Math.max(0, Date.now() - state.startAt) : 0);
+  }
+
+  // HH:MM:SS.d（永远三段，避免数字宽度跳动）
+  function clockText(ms) {
+    const t = Math.max(0, Math.floor(ms));
+    const h = Math.floor(t / 3600000);
+    const m = Math.floor(t / 60000) % 60;
+    const s = Math.floor(t / 1000) % 60;
+    const d = Math.floor(t / 100) % 10;
+    return pad(h, 2) + ':' + pad(m, 2) + ':' + pad(s, 2) + '<span class="f">.' + d + '</span>';
+  }
+
+  // 记录用：1:23.4 / 12:03 / 1:02:03
+  function durText(ms, tenths) {
+    let t = Math.max(0, ms);
+    const h = Math.floor(t / 3600000);
+    const m = Math.floor(t / 60000) % 60;
+    const s = Math.floor(t / 1000) % 60;
+    const d = Math.floor(t / 100) % 10;
+    if (h > 0) return h + ':' + pad(m, 2) + ':' + pad(s, 2);
+    if (!tenths) return m + ':' + pad(s, 2);
+    return m + ':' + pad(s, 2) + (m < 10 ? '.' + d : '');
+  }
+
+  function humanDur(ms) {
+    const total = Math.round(ms / 1000);
+    if (total < 60) return total + ' 秒';
+    const h = Math.floor(total / 3600);
+    const m = Math.floor(total / 60) % 60;
+    if (h > 0) return h + ' 小时 ' + (m ? m + ' 分' : '');
+    return total % 60 ? m + ' 分 ' + (total % 60) + ' 秒' : m + ' 分钟';
+  }
+
+  function clockOf(ts) {
+    const d = new Date(ts);
+    return pad(d.getHours(), 2) + ':' + pad(d.getMinutes(), 2);
+  }
+
+  function whenText(ts) {
+    const d = new Date(ts);
+    const now = new Date();
+    const sameDay = d.toDateString() === now.toDateString();
+    const yest = new Date(now.getTime() - DAY);
+    if (sameDay) return '今天 ' + clockOf(ts);
+    if (d.toDateString() === yest.toDateString()) return '昨天 ' + clockOf(ts);
+    return (d.getMonth() + 1) + ' 月 ' + d.getDate() + ' 日 ' + clockOf(ts);
+  }
+
+  function guessName(ts) {
+    const d = new Date(ts);
+    const h = d.getHours();
+    const part = h < 5 ? '凌晨' : h < 9 ? '早上' : h < 12 ? '上午' : h < 14 ? '中午' : h < 18 ? '下午' : '晚上';
+    return part + '的计时';
+  }
+
+  /* ───────────────────────── 渲染 ───────────────────────── */
+  function render() {
+    const e = elapsedMs();
+    const running = !!(state && state.running);
+
+    el.time.innerHTML = clockText(e);
+    el.time.classList.toggle('live', !!state);
+
+    el.btnStart.hidden = !!state;
+    el.runningActions.hidden = !state;
+    el.btnPause.classList.toggle('resume', !!state && !running);
+    el.pauseText.textContent = running ? '暂停' : '继续';
+
+    el.pulse.classList.toggle('stop', !running);
+    const status = pending ? '已结束 · 待命名'
+      : !state ? '准备开始'
+      : running ? (state.acc > 0 ? '继续中' : '计时中')
+      : '已暂停';
+    if (status !== lastStatus) { el.statusText.textContent = status; lastStatus = status; }
+
+    el.btnAll.hidden = records.length === 0;
+    el.btnAll2.hidden = records.length === 0;
+    el.btnExport.hidden = records.length === 0;
+    // 计时中把记录收起来，保证手机上一屏能看全计时和按钮
+    el.historyBox.hidden = !!state || !!pending;
+  }
+
+  /* 标签页标题也带上时长，切到别的 App 回来能一眼看到（每秒刷一次即可） */
+  function syncTitle() {
+    if (!state) { if (document.title !== '计时') document.title = '计时'; return; }
+    const t = clockText(elapsedMs()).replace(/<[^>]+>/g, '');
+    const next = (state.running ? '▶ ' : '⏸ ') + t;
+    if (document.title !== next) document.title = next;
+  }
+
+  /* ───────────────────────── 主循环 ───────────────────────── */
+  function loop() {
+    if (!state || !state.running) { tickHandle = 0; return; }
+    render();
+    syncTitle();
+    tickHandle = requestAnimationFrame(loop);
+  }
+  function ensureLoop() {
+    if (!tickHandle && state && state.running) tickHandle = requestAnimationFrame(loop);
+  }
+  function stopLoop() {
+    if (tickHandle) { cancelAnimationFrame(tickHandle); tickHandle = 0; }
+  }
+
+  /* ───────────────────────── 持久化 ───────────────────────── */
+  function persist() {
+    if (state) store.set(CURRENT_KEY, state);
+    else store.set(CURRENT_KEY, null);
+  }
+  function persistRecords() {
+    const ok = store.set(RECORDS_KEY, records);
+    if (!ok) showNotice('<b>本地空间不足</b><br>新记录没能存下来。请点右上角导出备份，再删掉一些旧记录。');
+    return ok;
+  }
+
+  function saveCurrent() {
+    if (!store.set(CURRENT_KEY, state)) {
+      showNotice('<b>本地空间不足</b><br>当前计时无法保存，刷新页面会丢失。');
+      return;
+    }
+    persistRecords();
+  }
+
+  /* ───────────────────────── 计时动作 ───────────────────────── */
+  function requestNotifyPermission() {
+    return new Promise((resolve) => {
+      try {
+        if (typeof Notification === 'undefined') return resolve('unsupported');
+        if (Notification.permission === 'granted') return resolve('granted');
+        if (Notification.permission === 'denied') return resolve('denied');
+        if (store.get('sw.askedNotify', false)) return resolve('skipped'); // 只问一次
+        store.set('sw.askedNotify', true);
+        const r = Notification.requestPermission((p) => resolve(p));
+        if (r && typeof r.then === 'function') r.then(resolve, () => resolve('denied'));
+      } catch (e) { resolve('unsupported'); }
+    });
+  }
+
+  /* iOS 不认 new Notification()，只认 Service Worker 的 showNotification；
+     没有 SW（比如直接双击本地文件）就退回普通 Notification。 */
+  function initSW() {
+    try {
+      if (!('serviceWorker' in navigator) || !window.isSecureContext) return;
+      navigator.serviceWorker.register('sw.js').then((reg) => { swReg = reg; }).catch(() => {});
+    } catch (e) { /* 忽略 */ }
+  }
+
+  function nativeNotify(title, body) {
+    try {
+      if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+      const opts = { body: body, tag: 'stopwatch-state', silent: true };
+      if (swReg && typeof swReg.showNotification === 'function') {
+        swReg.showNotification(title, opts);
+        return;
+      }
+      new Notification(title, opts);
+    } catch (e) { /* 忽略 */ }
+  }
+
+  function startTimer(isResume, silent) {
+    const now = Date.now();
+    if (state) {
+      state.running = true;
+      state.startAt = now;
+    } else {
+      state = { running: true, startAt: now, acc: 0, startedAt: now };
+    }
+    if (!isResume) clearNotice();
+    saveCurrent();
+    render();
+    syncTitle();
+    ensureLoop();
+    if (!silent) nativeNotify('计时已开始', '开始于 ' + clockOf(now) + '，切回本页可看实时时长');
+  }
+
+  function pauseTimer() {
+    if (!state || !state.running) return;
+    state.acc = elapsedMs();
+    state.running = false;
+    stopLoop();
+    saveCurrent();
+    render();
+    syncTitle();
+  }
+
+  function resumeTimer() {
+    if (!state || state.running) return;
+    startTimer(true);
+  }
+
+  function endTimer(durOverride) {
+    if (!state) return;
+    const now = Date.now();
+    const dur = typeof durOverride === 'number' ? durOverride : elapsedMs();
+    state = null;
+    stopLoop();
+    clearNotice();
+    persist();
+    render();
+    syncTitle();
+    if (dur < MIN_SAVE_MS) return;
+    openNameSheet({
+      id: 'r' + now.toString(36) + Math.random().toString(36).slice(2, 6),
+      name: '',
+      startedAt: now - dur,
+      endedAt: now,
+      durationMs: dur
+    });
+  }
+
+  /* ───────────────────────── 记录 ───────────────────────── */
+  function sortedRecords() {
+    return records.slice().sort((a, b) => b.endedAt - a.endedAt);
+  }
+
+  function makeRow(rec) {
+    const li = document.createElement('li');
+    li.className = 'rec';
+    li.dataset.id = rec.id;
+
+    const main = document.createElement('button');
+    main.type = 'button';
+    main.className = 'rec-main';
+    main.title = '点击重命名';
+
+    const name = document.createElement('span');
+    name.className = 'rec-name';
+    name.textContent = rec.name || '未命名';
+
+    const meta = document.createElement('span');
+    meta.className = 'rec-meta';
+    meta.textContent = '结束于 ' + whenText(rec.endedAt);
+
+    const dur = document.createElement('span');
+    dur.className = 'rec-dur';
+    dur.textContent = durText(rec.durationMs, true);
+
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'rec-del';
+    del.setAttribute('aria-label', '删除这条记录');
+    del.innerHTML = TRASH_SVG;
+
+    main.append(name, meta);
+    li.append(main, dur, del);
+
+    main.addEventListener('click', () => openNameSheet(rec));
+    del.addEventListener('click', () => deleteRecord(rec.id, del));
+    return li;
+  }
+
+  function renderRecords() {
+    const list = sortedRecords();
+    el.recList.replaceChildren();
+    list.slice(0, 4).forEach((r) => el.recList.appendChild(makeRow(r)));
+    el.emptyHint.hidden = records.length > 0;
+    render();
+  }
+
+  function renderAll() {
+    const list = sortedRecords();
+    el.allList.replaceChildren();
+    list.forEach((r) => el.allList.appendChild(makeRow(r)));
+    el.allEmpty.hidden = records.length > 0;
+    const total = list.reduce((s, r) => s + r.durationMs, 0);
+    el.allStats.replaceChildren();
+    const mk = (label, val) => {
+      const s = document.createElement('span');
+      s.append(label + ' ');
+      const b = document.createElement('b');
+      b.textContent = val;
+      s.appendChild(b);
+      return s;
+    };
+    el.allStats.append(mk('共', records.length + ' 段'), mk('累计', humanDur(total)));
+  }
+
+  function deleteRecord(id, btn) {
+    // 两段式删除：第一次点变成「再点删除」，3 秒内再点才真删，避免误触
+    if (btn && btn.dataset.armed !== '1') {
+      if (el._armedBtn && el._armedBtn !== btn) disarmDelete(el._armedBtn);
+      btn.dataset.armed = '1';
+      btn.classList.add('armed');
+      btn.innerHTML = '<span class="rec-del-txt">再点删除</span>';
+      el._armedBtn = btn;
+      clearTimeout(el._armedTimer);
+      el._armedTimer = setTimeout(() => disarmDelete(btn), 3000);
+      return;
+    }
+    if (btn) disarmDelete(btn);
+    records = records.filter((r) => r.id !== id);
+    persistRecords();
+    renderRecords();
+    if (!el.allSheet.hidden) renderAll();
+  }
+
+  function disarmDelete(btn) {
+    if (!btn) return;
+    delete btn.dataset.armed;
+    btn.classList.remove('armed');
+    btn.innerHTML = TRASH_SVG;
+    if (el._armedBtn === btn) el._armedBtn = null;
+  }
+
+  /* ───────────────────────── 命名弹层 ───────────────────────── */
+  function openNameSheet(rec) {
+    pending = rec;
+    editingId = rec.id;
+    const exists = records.some((r) => r.id === rec.id);
+    if (!exists) store.set(DRAFT_KEY, rec);   // 未命名草稿，刷新后仍能继续命名
+    el.nameSheet.hidden = false;
+    el.nameDuration.textContent = durText(rec.durationMs, true);
+    el.nameSub.textContent = whenText(rec.startedAt) + ' 开始 · 共 ' + humanDur(rec.durationMs);
+    el.nameInput.value = exists ? (rec.name || '') : '';
+    el.nameInput.placeholder = exists ? '输入新名称' : guessName(rec.startedAt);
+    el.nameTitle.textContent = exists ? '修改名称' : '这段计时叫什么？';
+    el.btnDiscard.textContent = exists ? '取消' : '不保存';
+    el.btnSaveName.textContent = exists ? '保存名称' : '保存';
+    requestAnimationFrame(() => { try { el.nameInput.focus({ preventScroll: true }); } catch (e) { el.nameInput.focus(); } });
+    render();
+  }
+
+  function closeNameSheet() {
+    el.nameSheet.hidden = true;
+    pending = null;
+    editingId = null;
+    store.set(DRAFT_KEY, null);
+    try { el.nameInput.blur(); } catch (e) {}
+  }
+
+  function commitName() {
+    if (!pending) return;
+    const rec = pending;
+    const name = el.nameInput.value.trim();
+    if (records.some((r) => r.id === rec.id)) {
+      const old = records.find((r) => r.id === rec.id);
+      if (old) old.name = name;
+    } else {
+      records.push({
+        id: rec.id, name: name, startedAt: rec.startedAt, endedAt: rec.endedAt, durationMs: rec.durationMs
+      });
+    }
+    persistRecords();
+    closeNameSheet();
+    renderRecords();
+    if (!el.allSheet.hidden) renderAll();
+  }
+
+  function discardPending() {
+    closeNameSheet();
+    renderRecords();
+  }
+
+  /* ───────────────────────── 提示条 ───────────────────────── */
+  function showNotice(html, actions) {
+    el.noticeSlot.replaceChildren();
+    const box = document.createElement('div');
+    box.className = 'notice';
+    const body = document.createElement('div');
+    body.className = 'n-body';
+    body.innerHTML = html;
+    box.appendChild(body);
+    if (actions && actions.length) {
+      const wrap = document.createElement('div');
+      wrap.className = 'n-act';
+      actions.forEach((a) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'n-btn' + (a.primary ? ' acc' : '');
+        b.textContent = a.label;
+        b.addEventListener('click', () => { a.run(); });
+        wrap.appendChild(b);
+      });
+      body.appendChild(wrap);
+    }
+    el.noticeSlot.appendChild(box);
+  }
+  function clearNotice() { el.noticeSlot.replaceChildren(); }
+
+  /* ───────────────────────── 导出 ───────────────────────── */
+  function exportCsv() {
+    const rows = [['名称', '开始时间', '结束时间', '时长(秒)', '时长']];
+    sortedRecords().forEach((r) => {
+      rows.push([
+        r.name || '未命名',
+        new Date(r.startedAt).toISOString(),
+        new Date(r.endedAt).toISOString(),
+        (r.durationMs / 1000).toFixed(1),
+        durText(r.durationMs, true)
+      ]);
+    });
+    const csv = rows.map((r) => r.map((c) => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\r\n');
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const d = new Date();
+    a.href = url;
+    a.download = '计时记录-' + d.getFullYear() + pad(d.getMonth() + 1, 2) + pad(d.getDate(), 2) + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }
+
+  /* ───────────────────────── 事件绑定 ───────────────────────── */
+  el.btnStart.addEventListener('click', () => {
+    // 必须在点击手势里请求权限，否则 iOS 会忽略
+    requestNotifyPermission();
+    startTimer(false);
+  });
+  el.btnPause.addEventListener('click', () => {
+    if (!state) return;
+    if (state.running) pauseTimer(); else resumeTimer();
+  });
+  el.btnEnd.addEventListener('click', endTimer);
+  el.btnSaveName.addEventListener('click', commitName);
+  el.btnDiscard.addEventListener('click', discardPending);
+  el.nameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); commitName(); }
+    if (e.key === 'Escape') { e.preventDefault(); discardPending(); }
+  });
+
+  el.btnAll.addEventListener('click', openAll);
+  el.btnAll2.addEventListener('click', openAll);
+  el.btnExport.addEventListener('click', exportCsv);
+  function openAll() { el.allSheet.hidden = false; renderAll(); }
+
+  document.querySelectorAll('[data-close]').forEach((mask) => {
+    mask.addEventListener('click', () => {
+      const id = mask.getAttribute('data-close');
+      if (id === 'allSheet') el.allSheet.hidden = true;
+      else if (id === 'nameSheet') discardPending();
+    });
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      render();
+      syncTitle();
+      if (state && state.running) ensureLoop();
+    } else {
+      stopLoop();
+    }
+  });
+
+  window.addEventListener('pagehide', () => { if (state) persist(); });
+  window.addEventListener('pageshow', () => { render(); syncTitle(); if (state && state.running) ensureLoop(); });
+
+  /* 后台 rAF 会停摆，用低频定时器兜底刷新标题（iOS 上切出时基本不执行，切回会立即同步） */
+  setInterval(() => {
+    if (!state || !state.running) return;
+    render();
+    syncTitle();
+  }, 1000);
+
+  /* ───────────────────────── 启动 ───────────────────────── */
+  function boot() {
+    records = store.get(RECORDS_KEY, []) || [];
+    const saved = store.get(CURRENT_KEY, null);
+    renderRecords();
+
+    if (saved && saved.running) {
+      // 按真实经过时间恢复（含页面关闭/锁屏那一段），再让用户决定是否计入
+      const wall = Math.max(0, saved.acc + Math.max(0, Date.now() - saved.startAt));
+      state = { running: false, startAt: 0, acc: wall, startedAt: saved.startedAt };
+      saveCurrent();
+      render();
+
+      showNotice(
+        '<b>检测到未结束的计时</b><br>已按真实经过时间恢复为 ' + durText(wall, true) +
+        '。如果中间手机锁屏或关掉了页面，这段时间可能不该算进去。',
+        [
+          { label: '接着计时', primary: true, run: () => { clearNotice(); startTimer(true); } },
+          { label: '按此结束并命名', run: () => { endTimer(wall); } },
+          { label: '丢弃', run: () => { state = null; stopLoop(); persist(); clearNotice(); render(); } }
+        ]
+      );
+      return;
+    }
+
+    if (saved) {
+      state = saved;
+      if (state.running) startTimer(true, true);
+    }
+    render();
+    if (state && state.running) ensureLoop();
+  }
+
+  // 刷新/误关页面时，还没命名的记录也捞回来
+  function bootDraft() {
+    const draft = store.get(DRAFT_KEY, null);
+    if (!draft || !draft.id || records.some((r) => r.id === draft.id)) return false;
+    openNameSheet(draft);
+    return true;
+  }
+
+  // 便于手动排查 / 自动化测试
+  const __timer = {
+    get state() { return state; },
+    get records() { return records; },
+    elapsedMs: elapsedMs,
+    clearAll() {
+      records = []; state = null;
+      try { localStorage.clear(); } catch (e) {}
+      renderRecords(); render();
+    }
+  };
+  if (typeof window !== 'undefined') window.__timer = __timer;
+
+  boot();
+  bootDraft();
+  initSW();
+})();
+</script>
+</body>
+</html>
